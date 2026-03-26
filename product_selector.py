@@ -1,97 +1,107 @@
 import streamlit as st
 import pandas as pd
+import os
 
-st.set_page_config(page_title="Công cụ Chọn Thiết Bị Riken", page_icon="⚙️", layout="wide")
-
-# ==========================================
-# 1. DATABASE THIẾT BỊ (Mô phỏng các dòng Riken Keiki)
-# ==========================================
-data = {
-    "Model": ["GX-3R", "RX-8000", "SD-3", "GD-70D", "GW-3"],
-    "Loại máy": ["Cầm tay (Portable)", "Cầm tay (Portable)", "Cố định (Fixed)", "Cố định (Fixed)", "Cầm tay (Portable)"],
-    "Kiểu lấy mẫu": ["Khuếch tán (Diffusion)", "Hút bơm (Pump)", "Khuếch tán (Diffusion)", "Hút bơm (Pump)", "Khuếch tán (Diffusion)"],
-    "Khí đo được": ["LEL, O2, H2S, CO", "HC, O2, H2S, CO", "LEL, Toxics, O2", "Toxics, VOCs", "O2, CO, H2S (Đơn khí)"],
-    "Môi trường / Chứng chỉ": ["ATEX, IECEx", "ATEX, MED", "ATEX, IECEx, SIL2", "Phòng sạch (Cleanroom)", "ATEX, IECEx"],
-    "Tính năng nổi bật": ["Nhỏ nhẹ nhất thế giới", "Đo được nồng độ cao (100% vol)", "Thiết kế thông minh, SIL 2", "Độ chính xác cực cao cho bán dẫn", "Đeo cổ tay, kẹp áo nhỏ gọn"],
-    "Hình ảnh": ["https://www.rikenkeiki.co.jp/english/products/img/gx-3r.jpg", 
-                 "https://www.rikenkeiki.co.jp/english/products/img/rx-8000.jpg",
-                 "https://www.rikenkeiki.co.jp/english/products/img/sd-3.jpg",
-                 "https://www.rikenkeiki.co.jp/english/products/img/gd-70d.jpg",
-                 "https://www.rikenkeiki.co.jp/english/products/img/gw-3.jpg"]
-}
-df = pd.DataFrame(data)
+st.set_page_config(page_title="Hệ thống Chọn Thiết Bị Riken", page_icon="⚙️", layout="wide")
 
 # ==========================================
-# 2. GIAO DIỆN CÔNG CỤ TÌM KIẾM
+# 1. ĐỌC FILE EXCEL GỐC CỦA RIKEN KEIKI
 # ==========================================
-st.title("🎯 Hệ thống Cấu hình & Lựa chọn Thiết bị")
-st.markdown("Vui lòng chọn các thông số kỹ thuật theo yêu cầu thực tế của dự án. Hệ thống sẽ lọc ra các thiết bị phù hợp nhất.")
+file_path = "riken_database.xlsx"
+
+# Dùng cache để web load cực nhanh, không phải đọc lại file Excel mỗi lần bấm nút
+@st.cache_data
+def load_data():
+    if os.path.exists(file_path):
+        # Đọc trực tiếp file Excel của sếp
+        df = pd.read_excel(file_path)
+    else:
+        st.warning("⚠️ Chưa tìm thấy file 'riken_database.xlsx'. Đang hiển thị dữ liệu mẫu để test giao diện.")
+        # Dữ liệu mẫu mô phỏng đúng các cột trong ảnh của sếp
+        data = {
+            "Detection Gas": ["Hydrogen sulfide", "Carbon monoxide", "Methane", "Ammonia"],
+            "Remarks": ["", "For steel plant", "General purpose", "Toxics"],
+            "Gas Cymbol": ["H2S", "CO", "CH4", "NH3"],
+            "CAS Number": ["7783-06-4", "630-08-0", "74-82-8", "7664-41-7"],
+            "Chemical Formula": ["H2S", "CO", "CH4", "NH3"],
+            "Principle": ["Electrochemical", "Electrochemical", "Catalytic Combustion", "Electrochemical"],
+            "Sensor": ["ES-1821", "ES-1827", "NC-6264A", "ES-18"],
+            "Portable/Fixed": ["Portable", "Fixed", "Portable", "Fixed"],
+            "Detector": ["GX-3R", "SD-3", "RX-8000", "GD-70D"],
+            "Measuring Rang": ["0-30 ppm", "0-500 ppm", "0-100% LEL", "0-75 ppm"]
+        }
+        df = pd.DataFrame(data)
+    
+    # Xử lý các ô trống trong Excel để code không bị lỗi
+    return df.fillna("N/A")
+
+df = load_data()
+
+# ==========================================
+# 2. GIAO DIỆN TÌM KIẾM
+# ==========================================
+st.title("🎯 Công Cụ Chọn Thiết Bị (Dữ liệu gốc Riken Keiki)")
+st.markdown("Tra cứu cấu hình thiết bị dựa trên danh mục chuẩn của hãng.")
 st.markdown("---")
 
-# Tạo thanh công cụ lọc (Filter Sidebar/Top bar)
 with st.container(border=True):
-    st.subheader("⚙️ Thông số đầu vào")
+    st.subheader("⚙️ Bộ Lọc Thông Số")
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        # Lọc Loại máy
-        loai_may_list = ["Tất cả"] + list(df["Loại máy"].unique())
-        chon_loai = st.selectbox("1. Kiểu lắp đặt:", loai_may_list)
+        # Lọc theo kiểu máy (Lấy từ cột Portable/Fixed)
+        loai_may_list = ["Tất cả"] + list(df["Portable/Fixed"].unique())
+        chon_loai = st.selectbox("1. Kiểu lắp đặt (Portable/Fixed):", loai_may_list)
         
     with col2:
-        # Lọc Kiểu lấy mẫu
-        lay_mau_list = ["Tất cả"] + list(df["Kiểu lấy mẫu"].unique())
-        chon_lay_mau = st.selectbox("2. Kiểu lấy mẫu:", lay_mau_list)
-        
-    with col3:
-        # Lọc Môi trường (Chứng chỉ)
-        # Tách các chứng chỉ ra khỏi chuỗi để tạo list độc lập
-        all_certs = set([cert.strip() for certs in df["Môi trường / Chứng chỉ"].str.split(',') for cert in certs])
-        chon_moi_truong = st.selectbox("3. Yêu cầu chứng chỉ đặc biệt:", ["Tất cả"] + sorted(list(all_certs)))
+        # Lọc theo nguyên lý đo (Lấy từ cột Principle)
+        principle_list = ["Tất cả"] + list(df["Principle"].unique())
+        chon_nguyen_ly = st.selectbox("2. Nguyên lý cảm biến (Principle):", principle_list)
 
-    # Ô nhập loại khí tìm kiếm tự do (Vì tổ hợp khí rất nhiều)
-    chon_khi = st.text_input("4. Nhập loại khí cần đo (VD: LEL, H2S, NH3... để trống nếu chưa xác định):", placeholder="VD: LEL")
+    with col3:
+        # Ô nhập tự do: Có thể tìm tên khí, công thức hóa học, hoặc mã model
+        tu_khoa = st.text_input("3. Tên khí / Công thức / Model:", placeholder="VD: H2S, Carbon, GX-3R...")
 
 # ==========================================
-# 3. THUẬT TOÁN LỌC DỮ LIỆU
+# 3. THUẬT TOÁN LỌC
 # ==========================================
 filtered_df = df.copy()
 
 if chon_loai != "Tất cả":
-    filtered_df = filtered_df[filtered_df["Loại máy"] == chon_loai]
-    
-if chon_lay_mau != "Tất cả":
-    filtered_df = filtered_df[filtered_df["Kiểu lấy mẫu"] == chon_lay_mau]
+    filtered_df = filtered_df[filtered_df["Portable/Fixed"] == chon_loai]
 
-if chon_moi_truong != "Tất cả":
-    # Kiểm tra xem chứng chỉ được chọn có nằm trong cột không
-    filtered_df = filtered_df[filtered_df["Môi trường / Chứng chỉ"].str.contains(chon_moi_truong, case=False, na=False)]
+if chon_nguyen_ly != "Tất cả":
+    filtered_df = filtered_df[filtered_df["Principle"] == chon_nguyen_ly]
 
-if chon_khi:
-    filtered_df = filtered_df[filtered_df["Khí đo được"].str.contains(chon_khi, case=False, na=False)]
+if tu_khoa:
+    # Tìm kiếm bao trùm nhiều cột cùng lúc (Tên khí, Công thức, Symbol, Model)
+    mask = filtered_df.apply(lambda row: row.astype(str).str.contains(tu_khoa, case=False).any(), axis=1)
+    filtered_df = filtered_df[mask]
 
 # ==========================================
-# 4. HIỂN THỊ KẾT QUẢ ĐỀ XUẤT
+# 4. HIỂN THỊ KẾT QUẢ
 # ==========================================
 st.markdown("<br>", unsafe_allow_html=True)
-st.subheader(f"✅ Đề xuất phù hợp: TÌM THẤY {len(filtered_df)} THIẾT BỊ")
+st.subheader(f"✅ TÌM THẤY {len(filtered_df)} KẾT QUẢ")
 
 if not filtered_df.empty:
-    # Hiển thị kết quả dạng lưới (Grid) thay vì bảng nhàm chán
-    cols = st.columns(3) # Hiển thị 3 sản phẩm 1 hàng
-    
+    cols = st.columns(3) 
     for index, row in filtered_df.reset_index().iterrows():
-        # Phân phối tuần tự vào 3 cột
         with cols[index % 3]:
             with st.container(border=True):
-                # Dùng HTML để canh giữa ảnh và giới hạn chiều cao
-                st.markdown(f"<div style='text-align: center;'><img src='{row['Hình ảnh']}' height='150'></div>", unsafe_allow_html=True)
-                st.markdown(f"<h3 style='text-align: center; color: #d10000;'>{row['Model']}</h3>", unsafe_allow_html=True)
-                st.markdown(f"**Kiểu máy:** {row['Loại máy']}")
-                st.markdown(f"**Lấy mẫu:** {row['Kiểu lấy mẫu']}")
-                st.markdown(f"**Khí đo:** {row['Khí đo được']}")
-                st.markdown(f"**Chứng chỉ:** {row['Môi trường / Chứng chỉ']}")
-                st.info(f"💡 {row['Tính năng nổi bật']}")
-                st.button(f"📥 Tải Datasheet {row['Model']}", key=f"btn_{row['Model']}", use_container_width=True)
+                st.markdown(f"<h3 style='text-align: center; color: #d10000;'>{row['Detector']}</h3>", unsafe_allow_html=True)
+                st.markdown(f"**🔹 Kiểu máy:** {row['Portable/Fixed']}")
+                st.markdown(f"**🧪 Loại khí:** {row['Detection Gas']} ({row['Chemical Formula']})")
+                st.markdown(f"**📏 Dải đo:** {row['Measuring Rang']}")
+                st.markdown(f"**🔬 Nguyên lý:** {row['Principle']}")
+                st.markdown(f"**🔌 Cảm biến:** {row['Sensor']}")
+                
+                if row['Remarks'] and row['Remarks'] != "N/A":
+                    st.info(f"💡 Lưu ý: {row['Remarks']}")
+                
+                # Nút tìm Catalog tự động
+                search_link = f"https://www.google.com/search?q={row['Detector']}+Riken+Keiki+datasheet+pdf"
+                st.link_button(f"📥 Tìm Catalog {row['Detector']}", search_link, use_container_width=True)
 else:
-    st.warning("⚠️ Không có thiết bị nào thỏa mãn toàn bộ các tiêu chí trên. Vui lòng giảm bớt bộ lọc hoặc liên hệ phòng Kỹ thuật.")
+    st.error("⚠️ Không tìm thấy thiết bị phù hợp. Hãy thử rút ngắn từ khóa (VD: thay vì gõ 'Hydrogen sulfide' hãy gõ 'H2S').")
